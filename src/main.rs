@@ -239,18 +239,39 @@ impl<'a> ClientReader<'a>
         let mut new_message = String::new();
 
         let offset: f32 = rand::random();
-        for (i, c) in message.chars().enumerate()
-        {
-            let mut position = offset + i as f32/message.len() as f32;
 
-            if position>=1.0
+        let mut index = 0;
+        let mut ignore = false;
+        for c in message.chars()
+        {
+            if c=='['
             {
-                position = 2.0-position;
+                ignore = true;
             }
 
-            let colored = self.colorer.color(c, position);
+            if !ignore
+            {
+                let mut position = offset + index as f32/message.len() as f32;
 
-            new_message.push_str(colored.as_str());
+                if position>=1.0
+                {
+                    position = 2.0-position;
+                }
+
+                let colored = self.colorer.color(c, position);
+
+                new_message.push_str(colored.as_str());
+
+                index += 1;
+            } else
+            {
+                new_message.push(c);
+            }
+
+            if c==']'
+            {
+                ignore = false;
+            }
         }
 
         let new_length = new_message.bytes().len();
