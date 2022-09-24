@@ -62,7 +62,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "terrara_cool_colorer"
+name = "terraria_cool_colorer"
 version = "0.1.0"
 dependencies = [
  "rand",
