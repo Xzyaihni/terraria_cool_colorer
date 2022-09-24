@@ -4,7 +4,7 @@ use std::process;
 
 use std::thread;
 
-use std::io::{Read, Write, ErrorKind};
+use std::io::{Write, BufReader, BufRead, ErrorKind};
 use std::net::{TcpStream, TcpListener};
 
 use colorer::Colorer;
@@ -133,24 +133,11 @@ trait StreamReader
         &mut self,
         ) -> Result<Vec<u8>, String>
     {
-        let mut buffer = [0; 2048];
+        let mut reader = BufReader::new(self.read_stream());
 
-        let size = loop
-        {
-            match self.read_stream().read(&mut buffer)
-            {
-                Ok(read_amount) => break read_amount,
-                Err(err) =>
-                {
-                    if err.kind()!=ErrorKind::Interrupted
-                    {
-                        return Err(format!("error reading client data: {err}"));
-                    }
-                }
-            }
-        };
-
-        Ok(self.handle_buffer(&buffer[..size]))
+        let buffer: Vec<u8> = reader.fill_buf()
+            .map_err(|err| format!("error reading stream: {err}"))?.to_vec();
+        Ok(self.handle_buffer(&buffer))
     }
 
     fn handle_buffer(&self, buffer: &[u8]) -> Vec<u8>;
