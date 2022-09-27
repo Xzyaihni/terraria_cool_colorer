@@ -7,14 +7,48 @@ use std::thread;
 use std::io::{Write, BufReader, BufRead, ErrorKind};
 use std::net::{TcpStream, TcpListener};
 
-use colorer::Colorer;
+use colorer::{Colorer, Color, Interpolation};
 
 mod colorer;
+
+
+struct ColorParser
+{
+    colors: Vec<String>
+}
+
+impl ColorParser
+{
+    pub fn new(colors: String) -> Self
+    {
+        let colors = colors.split([',', ';']).map(|s| s.to_string()).collect();
+        ColorParser{colors}
+    }
+
+    pub fn parse(&self) -> Result<Vec<Color>, String>
+    {
+        let mut colors = self.colors.iter();
+
+        let mut parsed = Vec::new();
+        while let Some(r) = colors.next()
+        {
+            let r = r.as_str();
+            let g = colors.next().ok_or("no green value".to_string())?;
+            let b = colors.next().ok_or("no blue value".to_string())?;
+
+            parsed.push(Color::try_from([r, g, b])?);
+        }
+
+        Ok(parsed)
+    }
+}
 
 struct Config
 {
     connect_address: String,
-    frequency: f32,
+    colors: Vec<Color>,
+    shift: bool,
+    interpolation: Interpolation,
     port: u32
 }
 
@@ -23,7 +57,15 @@ impl Config
     pub fn parse(args: impl Iterator<Item=String>) -> Result<Self, String>
     {
         let mut connect_address = String::new();
-        let mut frequency = 2.0;
+
+        let mut colors = vec![
+            Color::new(255, 0, 0),
+            Color::new(0, 255, 0),
+            Color::new(0, 0, 255)
+            ];
+
+        let mut shift = true;
+        let mut interpolation = Interpolation::Linear;
         let mut port = 8888;
 
         let mut args = args.skip(1);
@@ -35,10 +77,29 @@ impl Config
                 {
                     connect_address = args.next().ok_or(format!("{arg} has no argument"))?;
                 },
-                "-f" | "--frequency" =>
+                "-C" | "--colors" =>
                 {
-                    frequency = args.next().ok_or(format!("{arg} has no argument"))?
-                        .parse().map_err(|err| format!("{err} cannot be converted to frequency"))?;
+                    let colors_list = args.next().ok_or(format!("{arg} has no argument"))?;
+
+                    colors = ColorParser::new(colors_list).parse()?;
+                    if colors.len()==0
+                    {
+                        return Err(format!("{arg} has no colors"));
+                    }
+                },
+                "-s" | "--shift" =>
+                {
+                    shift = false;
+                },
+                "-i" | "--interpolation" =>
+                {
+                    interpolation = match &arg.to_lowercase()[..]
+                    {
+                        "nearest" => Ok(Interpolation::Nearest),
+                        "linear" => Ok(Interpolation::Linear),
+                        "cubic" => Ok(Interpolation::Cubic),
+                        _ => Err("{arg} is not a valid interpolation")
+                    }?;
                 },
                 "-p" | "--port" =>
                 {
@@ -57,18 +118,27 @@ impl Config
             return Err("must have -c or --connect-address option specified".to_string());
         }
 
-        Ok(Config{connect_address, frequency, port})
+        Ok(Config{connect_address, colors, shift, interpolation, port})
     }
 }
 
 fn help_message() -> !
 {
-    let executable = env::args().nth(0).expect("all programs have a name");
+    let executable = env::args().nth(0).unwrap();
     eprintln!("usage: {executable} [args]");
     eprintln!(" args:");
     eprintln!("    -c, --connect-address    address to connect to");
-    eprintln!("    -f, --frequency    frequency of color (default 2)");
-    eprintln!("    -p, --port    proxy port (default 8888)");
+    eprintln!("    -C, --colors             gradient to use (default 255, 0, 0; 0, 255, 0; 0, 0, 255)");
+    eprintln!("    -s, --shift              dont shift the colors randomly");
+    eprintln!("    -i, --interpolation      interpolation type (see below, default linear)");
+    eprintln!("    -p, --port               proxy port (default 8888)");
+    eprintln!(" gradients:");
+    eprintln!("    gradients are lists of 3 values (rgb) separated by , or ;");
+    eprintln!("    example:");
+    eprintln!("     shifts from red (255,0,0) to blue (0,0,255)");
+    eprintln!("     255, 0, 0; 0, 0, 255");
+    eprintln!(" interpolations:");
+    eprintln!("    available interpolation types are: nearest, linear, cubic");
     process::exit(1);
 }
 
@@ -107,7 +177,13 @@ fn start_listening(config: &Config) -> Result<(), String>
         let mut read_connector = write_connector.try_clone()
             .map_err(|err| format!("error cloning server stream: {err}"))?;
 
-        let colorer = Colorer::new(config.frequency);
+        let colorer =
+            Colorer::new(
+                config.colors.clone(),
+                config.shift,
+                config.interpolation.clone()
+                );
+
         thread::spawn(move ||
         {
             ClientReader::spawn(&mut read_stream, &mut write_connector, colorer)
@@ -140,7 +216,7 @@ trait StreamReader
         Ok(self.handle_buffer(&buffer))
     }
 
-    fn handle_buffer(&self, buffer: &[u8]) -> Vec<u8>;
+    fn handle_buffer(&mut self, buffer: &[u8]) -> Vec<u8>;
 }
 
 trait ProxyPart<'a>: StreamReader
@@ -207,7 +283,7 @@ impl<'a> ClientReader<'a>
 
     const MESSAGE_POS: usize = 9;
 
-    fn change_chat(&self, buffer: &[u8]) -> Vec<u8>
+    fn change_chat(&mut self, buffer: &[u8]) -> Vec<u8>
     {
         let full_length = buffer.len()-Self::MESSAGE_POS;
         let length_length = if full_length>128
@@ -225,10 +301,11 @@ impl<'a> ClientReader<'a>
 
         let mut new_message = String::new();
 
-        let offset: f32 = rand::random();
-
         let mut index = 0;
         let mut ignore = false;
+
+        //signal that its a new message
+        self.colorer.word();
         for c in message.chars()
         {
             if c=='['
@@ -238,12 +315,7 @@ impl<'a> ClientReader<'a>
 
             if !ignore
             {
-                let mut position = offset + index as f32/message.len() as f32;
-
-                if position>=1.0
-                {
-                    position = 2.0-position;
-                }
+                let position = index as f32/message.len() as f32;
 
                 let colored = self.colorer.color(c, position);
 
@@ -306,7 +378,7 @@ impl<'a> StreamReader for ClientReader<'a>
         self.read_stream
     }
 
-    fn handle_buffer(&self, buffer: &[u8]) -> Vec<u8>
+    fn handle_buffer(&mut self, buffer: &[u8]) -> Vec<u8>
     {
         let size = buffer.len();
         if size>=Self::MINIMUM_SIZE && buffer[2..9]==Self::CHAT_MESSAGE_HEADER
@@ -352,7 +424,7 @@ impl<'a> StreamReader for ServerReader<'a>
         self.read_stream
     }
 
-    fn handle_buffer(&self, buffer: &[u8]) -> Vec<u8>
+    fn handle_buffer(&mut self, buffer: &[u8]) -> Vec<u8>
     {
         buffer.to_vec()
     }
