@@ -88,7 +88,7 @@ impl TryFrom<[&str; 3]> for Color
     {
         let parse = |color: &str| -> Result<u8, String>
         {
-            color.parse().map_err(|_| format!("error parsing {}", color))
+            color.trim().parse().map_err(|_| format!("error parsing {}", color))
         };
 
         Ok(Color{
