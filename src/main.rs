@@ -93,12 +93,13 @@ impl Config
                 },
                 "-i" | "--interpolation" =>
                 {
-                    interpolation = match &arg.to_lowercase()[..]
+                    let interp_type = args.next().ok_or(format!("{arg} has no argument"))?;
+                    interpolation = match interp_type.to_lowercase().as_str()
                     {
                         "nearest" => Ok(Interpolation::Nearest),
                         "linear" => Ok(Interpolation::Linear),
                         "cubic" => Ok(Interpolation::Cubic),
-                        _ => Err("{arg} is not a valid interpolation")
+                        _ => Err(format!("{arg} is not a valid interpolation"))
                     }?;
                 },
                 "-p" | "--port" =>
