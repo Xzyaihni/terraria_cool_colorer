@@ -299,41 +299,8 @@ impl<'a> ClientReader<'a>
 
         let message = String::from_utf8_lossy(&buffer[real_msg_pos..]);
         println!("client sent: {}", message);
-        let chars_amount = message.chars().count();
 
-        let mut new_message = String::new();
-
-        let mut index = 0;
-        let mut ignore = false;
-
-        //signal that its a new message
-        self.colorer.word();
-        for c in message.chars()
-        {
-            if c=='['
-            {
-                ignore = true;
-            }
-
-            if !ignore
-            {
-                let position = index as f32/chars_amount as f32;
-
-                let colored = self.colorer.color(c, position);
-
-                new_message.push_str(colored.as_str());
-
-                index += 1;
-            } else
-            {
-                new_message.push(c);
-            }
-
-            if c==']'
-            {
-                ignore = false;
-            }
-        }
+        let new_message = self.colorer.color_text(&message);
 
         let new_length = new_message.bytes().len();
         let mut encoded_length = Self::terraria_type(new_length as u32);

@@ -138,7 +138,100 @@ impl Colorer
         out
     }
 
-    pub fn word(&mut self)
+    pub fn color_text(&mut self, text: &str) -> String
+    {
+        let chars_amount = text.chars().count();
+
+        let mut new_message = String::new();
+
+        let mut index = 0;
+        let mut ignore = false;
+
+        if let Some(color) = self.solid()
+        {
+            let color_string = format!("[c/{color}:");
+
+            let mut iter = text.chars().peekable();
+
+            ignore = iter.peek().map_or(true, |val| *val=='[');
+            if !ignore
+            {
+                new_message.push_str(&color_string);
+            }
+
+            while let Some(c) = iter.next()
+            {
+                if c=='['
+                {
+                    if !ignore
+                    {
+                        new_message.push(']');
+                    }
+                    new_message.push(c);
+                    ignore = true;
+                } else
+                {
+                    new_message.push(c);
+
+                    if c==']' && iter.peek().map_or(false, |val| *val!='[')
+                    {
+                        new_message.push_str(&color_string);
+                        ignore = false;
+                    }
+                }
+            }
+
+            if !ignore
+            {
+                new_message.push(']');
+            }
+        } else
+        {
+            //signal that its a new message
+            self.word();
+            for c in text.chars()
+            {
+                if c=='['
+                {
+                    ignore = true;
+                }
+
+                if !ignore
+                {
+                    let position = index as f32/chars_amount as f32;
+
+                    let colored = self.color(c, position);
+
+                    new_message.push_str(colored.as_str());
+
+                    index += 1;
+                } else
+                {
+                    new_message.push(c);
+                }
+
+                if c==']'
+                {
+                    ignore = false;
+                }
+            }
+        }
+
+        new_message
+    }
+
+    fn solid(&self) -> Option<Color>
+    {
+        if self.colors.len()==1
+        {
+            Some(self.colors[0].clone())
+        } else
+        {
+            None
+        }
+    }
+
+    fn word(&mut self)
     {
         if self.shift.is_some()
         {
@@ -146,7 +239,7 @@ impl Colorer
         }
     }
 
-    pub fn color(&self, c: char, mut position: f32) -> String
+    fn color(&self, c: char, mut position: f32) -> String
     {
         if c==' '
         {
