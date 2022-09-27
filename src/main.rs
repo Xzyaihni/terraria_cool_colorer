@@ -299,6 +299,7 @@ impl<'a> ClientReader<'a>
 
         let message = String::from_utf8_lossy(&buffer[real_msg_pos..]);
         println!("client sent: {}", message);
+        let chars_amount = message.chars().count();
 
         let mut new_message = String::new();
 
@@ -316,7 +317,7 @@ impl<'a> ClientReader<'a>
 
             if !ignore
             {
-                let position = index as f32/message.len() as f32;
+                let position = index as f32/chars_amount as f32;
 
                 let colored = self.colorer.color(c, position);
 
