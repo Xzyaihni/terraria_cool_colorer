@@ -96,6 +96,7 @@ impl Config
                     let interp_type = args.next().ok_or(format!("{arg} has no argument"))?;
                     interpolation = match interp_type.to_lowercase().as_str()
                     {
+                        "random" => Ok(Interpolation::Random),
                         "nearest" => Ok(Interpolation::Nearest),
                         "linear" => Ok(Interpolation::Linear),
                         "cubic" => Ok(Interpolation::Cubic),
@@ -139,7 +140,7 @@ fn help_message() -> !
     eprintln!("     shifts from red (255,0,0) to blue (0,0,255)");
     eprintln!("     255, 0, 0; 0, 0, 255");
     eprintln!(" interpolations:");
-    eprintln!("    available interpolation types are: nearest, linear, cubic");
+    eprintln!("    available interpolation types are: random, nearest, linear, cubic");
     process::exit(1);
 }
 

@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Clone)]
 pub enum Interpolation
 {
+    Random,
     Nearest,
     Linear,
     Cubic
@@ -28,9 +29,22 @@ impl Color
     {
         match interpolation
         {
+            Interpolation::Random =>
+            {
+                self.interpolate_inner(other, |lhs, rhs|
+                {
+                    if rand::random::<f32>()<0.5
+                    {
+                        lhs
+                    } else
+                    {
+                        rhs
+                    }
+                })
+            },
             Interpolation::Nearest =>
             {
-                let interpolate = |lhs, rhs|
+                self.interpolate_inner(other, |lhs, rhs|
                 {
                     if amount<0.5
                     {
@@ -39,44 +53,35 @@ impl Color
                     {
                         rhs
                     }
-                };
-
-                Color{
-                    r: interpolate(self.r, other.r),
-                    g: interpolate(self.g, other.g),
-                    b: interpolate(self.b, other.b)
-                    }
+                })
             },
             Interpolation::Linear =>
             {
-                let interpolate = |lhs, rhs|
+                self.interpolate_inner(other, |lhs, rhs|
                 {
                     let diff = rhs as i32 - lhs as i32;
                     let result = lhs as f32 + diff as f32*amount;
 
                     result.round() as u8
-                };
-
-                Color{
-                    r: interpolate(self.r, other.r),
-                    g: interpolate(self.g, other.g),
-                    b: interpolate(self.b, other.b)
-                    }
+                })
             },
             Interpolation::Cubic =>
             {
-                let interpolate = |lhs, rhs|
+                self.interpolate_inner(other, |lhs, rhs|
                 {
                     todo!()
-                };
-
-                Color{
-                    r: interpolate(self.r, other.r),
-                    g: interpolate(self.g, other.g),
-                    b: interpolate(self.b, other.b)
-                    }
+                })
             }
         }
+    }
+
+    fn interpolate_inner<F: FnMut(u8, u8) -> u8>(&self, other: &Color, mut interp: F) -> Color
+    {
+        Color{
+            r: interp(self.r, other.r),
+            g: interp(self.g, other.g),
+            b: interp(self.b, other.b)
+            }
     }
 }
 
