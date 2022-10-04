@@ -49,7 +49,8 @@ struct Config
     colors: Vec<Color>,
     shift: bool,
     interpolation: Interpolation,
-    port: u32
+    port: u32,
+    repeat: f32
 }
 
 impl Config
@@ -67,6 +68,7 @@ impl Config
         let mut shift = true;
         let mut interpolation = Interpolation::Linear;
         let mut port = 8888;
+        let mut repeat = 1.0;
 
         let mut args = args.skip(1);
         while let Some(arg) = args.next()
@@ -108,6 +110,11 @@ impl Config
                     port = args.next().ok_or(format!("{arg} has no argument"))?
                         .parse().map_err(|err| format!("{err} cannot be converted to port"))?;
                 },
+                "-r" | "--repeat" =>
+                {
+                    repeat = args.next().ok_or(format!("{arg} has no argument"))?
+                        .parse().map_err(|err| format!("{err} cannot be converted to repeat amount"))?;
+                },
                 opt =>
                 {
                     return Err(format!("unknown option: {opt}"));
@@ -120,7 +127,7 @@ impl Config
             return Err("must have -c or --connect-address option specified".to_string());
         }
 
-        Ok(Config{connect_address, colors, shift, interpolation, port})
+        Ok(Config{connect_address, colors, shift, interpolation, port, repeat})
     }
 }
 
@@ -134,6 +141,7 @@ fn help_message() -> !
     eprintln!("    -s, --shift              dont shift the colors randomly");
     eprintln!("    -i, --interpolation      interpolation type (see below, default linear)");
     eprintln!("    -p, --port               proxy port (default 8888)");
+    eprintln!("    -r, --repeat             amount of times to repeat the gradient, can be fractional (default 1)");
     eprintln!(" gradients:");
     eprintln!("    gradients are lists of 3 values (rgb) separated by , or ;");
     eprintln!("    example:");
@@ -183,7 +191,8 @@ fn start_listening(config: &Config) -> Result<(), String>
             Colorer::new(
                 config.colors.clone(),
                 config.shift,
-                config.interpolation.clone()
+                config.interpolation.clone(),
+                config.repeat
                 );
 
         thread::spawn(move ||

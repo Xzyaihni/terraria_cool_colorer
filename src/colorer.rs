@@ -117,12 +117,13 @@ pub struct Colorer
 {
     colors: Vec<Color>,
     shift: Option<f32>,
-    interpolation: Interpolation
+    interpolation: Interpolation,
+    repeat: f32
 }
 
 impl Colorer
 {
-    pub fn new(colors: Vec<Color>, shift: bool, interpolation: Interpolation) -> Self
+    pub fn new(colors: Vec<Color>, shift: bool, interpolation: Interpolation, repeat: f32) -> Self
     {
         if colors.len()==0
         {
@@ -137,7 +138,7 @@ impl Colorer
             None
         };
 
-        let mut out = Colorer{colors, shift, interpolation};
+        let mut out = Colorer{colors, shift, interpolation, repeat};
         out.word();
 
         out
@@ -244,27 +245,28 @@ impl Colorer
         }
     }
 
-    fn color(&self, c: char, mut position: f32) -> String
+    fn color(&self, c: char, position: f32) -> String
     {
         if c==' '
         {
             return c.to_string();
         }
 
-
         let color = if self.colors.len()==1
         {
             self.colors[0].clone()
         } else
         {
+            let mut position = position*self.repeat;
+
             if let Some(amount) = self.shift
             {
                 position += amount
             }
 
-            if position>=1.0
+            if position>=self.repeat
             {
-                position = position-1.0;
+                position = position-self.repeat;
             }
 
             let max_val = if self.shift.is_none()
@@ -278,8 +280,8 @@ impl Colorer
             let color_position = max_val as f32 * position;
 
             self.interpolate(
-                color_position.floor() as usize,
-                color_position.ceil() as usize,
+                color_position.floor() as usize % self.colors.len(),
+                color_position.ceil() as usize % self.colors.len(),
                 color_position.fract()
                 )
         };
