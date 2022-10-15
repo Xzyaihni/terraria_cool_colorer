@@ -125,7 +125,7 @@ impl Colorer
 {
     pub fn new(colors: Vec<Color>, shift: bool, interpolation: Interpolation, repeat: f32) -> Self
     {
-        if colors.len()==0
+        if colors.is_empty()
         {
             panic!("colors cannot be empty");
         }
@@ -266,7 +266,7 @@ impl Colorer
 
             if position>=self.repeat
             {
-                position = position-self.repeat;
+                position -= self.repeat;
             }
 
             let max_val = if self.shift.is_none()

@@ -33,8 +33,8 @@ impl ColorParser
         while let Some(r) = colors.next()
         {
             let r = r.as_str();
-            let g = colors.next().ok_or("no green value".to_string())?;
-            let b = colors.next().ok_or("no blue value".to_string())?;
+            let g = colors.next().ok_or_else(|| "no green value".to_string())?;
+            let b = colors.next().ok_or_else(|| "no blue value".to_string())?;
 
             parsed.push(Color::try_from([r, g, b])?);
         }
@@ -84,7 +84,7 @@ impl Config
                     let colors_list = args.next().ok_or(format!("{arg} has no argument"))?;
 
                     colors = ColorParser::new(colors_list).parse()?;
-                    if colors.len()==0
+                    if colors.is_empty()
                     {
                         return Err(format!("{arg} has no colors"));
                     }
@@ -133,7 +133,7 @@ impl Config
 
 fn help_message() -> !
 {
-    let executable = env::args().nth(0).unwrap();
+    let executable = env::args().next().unwrap();
     eprintln!("usage: {executable} [args]");
     eprintln!(" args:");
     eprintln!("    -c, --connect-address    address to connect to");
@@ -242,20 +242,17 @@ trait ProxyPart<'a>: StreamReader
             {
                 Ok(data) =>
                 {
-                    match self.write_stream().write(&data)
+                    if let Err(err) = self.write_stream().write(&data)
                     {
-                        Err(err) =>
+                        if err.kind()==ErrorKind::BrokenPipe
                         {
-                            if err.kind()==ErrorKind::BrokenPipe
-                            {
-                                println!("connection closed");
-                                process::exit(0);
-                            }
-                            println!("error writing to out: {err}");
-                            process::exit(1);
-                        },
-                        _ => ()
-                    }
+                            println!("connection closed");
+                            process::exit(0);
+                        }
+                        println!("error writing to out: {err}");
+                        process::exit(1);
+                    };
+
                     self.write_stream().flush().unwrap();
                 },
                 Err(err) => println!("error reading in data: {err}")
@@ -362,7 +359,7 @@ impl<'a> StreamReader for ClientReader<'a>
         let size = buffer.len();
         if size>=Self::MINIMUM_SIZE && buffer[2..9]==Self::CHAT_MESSAGE_HEADER
         {
-            self.change_chat(&buffer)
+            self.change_chat(buffer)
         } else
         {
             buffer.to_vec()
